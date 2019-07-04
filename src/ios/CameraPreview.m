@@ -84,20 +84,20 @@
 - (void) stopCamera:(CDVInvokedUrlCommand*)command {
     NSLog(@"stopCamera");
     CDVPluginResult *pluginResult;
-    
+
     if(self.sessionManager != nil) {
         [self.cameraRenderController.view removeFromSuperview];
         [self.cameraRenderController removeFromParentViewController];
-        
+
         self.cameraRenderController = nil;
         self.sessionManager = nil;
-        
+
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     }
     else {
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Camera not started"];
     }
-    
+
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
@@ -690,64 +690,39 @@
       } else {
 
         NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
-        UIImage *capturedImage  = [[UIImage alloc] initWithData:imageData];
+        UIImage *capturedImage = [[UIImage alloc] initWithData:imageData];
 
-        CIImage *capturedCImage;
-        //image resize
+        CGRect scaledImageRect = CGRectZero;
 
-        if(width > 0 && height > 0){
-          CGFloat scaleHeight = width/capturedImage.size.height;
-          CGFloat scaleWidth = height/capturedImage.size.width;
-          CGFloat scale = scaleHeight > scaleWidth ? scaleWidth : scaleHeight;
+        CGSize newSize = CGSizeMake(width, height);
+        CGFloat aspectWidth = newSize.width / capturedImage.size.width;
+        CGFloat aspectHeight = newSize.height / capturedImage.size.height;
+        CGFloat aspectRatio = MIN ( aspectWidth, aspectHeight );
 
-          CIFilter *resizeFilter = [CIFilter filterWithName:@"CILanczosScaleTransform"];
-          [resizeFilter setValue:[[CIImage alloc] initWithCGImage:[capturedImage CGImage]] forKey:kCIInputImageKey];
-          [resizeFilter setValue:[NSNumber numberWithFloat:1.0f] forKey:@"inputAspectRatio"];
-          [resizeFilter setValue:[NSNumber numberWithFloat:scale] forKey:@"inputScale"];
-          capturedCImage = [resizeFilter outputImage];
-        }else{
-          capturedCImage = [[CIImage alloc] initWithCGImage:[capturedImage CGImage]];
-        }
+        scaledImageRect.size.width = capturedImage.size.width * aspectRatio;
+        scaledImageRect.size.height = capturedImage.size.height * aspectRatio;
+        scaledImageRect.origin.x = (width - scaledImageRect.size.width) / 2.0f;
+        scaledImageRect.origin.y = 0;
+        UIGraphicsBeginImageContextWithOptions( newSize, NO, 1 );
+        [capturedImage drawInRect:scaledImageRect];
+        UIImage* scaledImage = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
 
-        CIImage *imageToFilter;
-        CIImage *finalCImage;
+        CIImage *capturedCImage = [[CIImage alloc] initWithCGImage:[scaledImage CGImage]];
 
-        //fix front mirroring
-        if (self.sessionManager.defaultCamera == AVCaptureDevicePositionFront) {
-          CGAffineTransform matrix = CGAffineTransformTranslate(CGAffineTransformMakeScale(1, -1), 0, capturedCImage.extent.size.height);
-          imageToFilter = [capturedCImage imageByApplyingTransform:matrix];
-        } else {
-          imageToFilter = capturedCImage;
-        }
-
-        CIFilter *filter = [self.sessionManager ciFilter];
-        if (filter != nil) {
-          [self.sessionManager.filterLock lock];
-          [filter setValue:imageToFilter forKey:kCIInputImageKey];
-          finalCImage = [filter outputImage];
-          [self.sessionManager.filterLock unlock];
-        } else {
-          finalCImage = imageToFilter;
-        }
-
-        CGImageRef finalImage = [self.cameraRenderController.ciContext createCGImage:finalCImage fromRect:finalCImage.extent];
-        UIImage *resultImage = [UIImage imageWithCGImage:finalImage];
-
-        double radians = [self radiansFromUIImageOrientation:resultImage.imageOrientation];
-        CGImageRef resultFinalImage = [self CGImageRotated:finalImage withRadians:radians];
-
-        CGImageRelease(finalImage); // release CGImageRef to remove memory leaks
+        CGImageRef finalImage = [self.cameraRenderController.ciContext createCGImage:capturedCImage fromRect:capturedCImage.extent];
+        CGImageRef resultFinalImage = finalImage;
 
         CDVPluginResult *pluginResult;
         if (self.storeToFile) {
           NSData *data = UIImageJPEGRepresentation([UIImage imageWithCGImage:resultFinalImage], (CGFloat) quality);
           NSString* filePath = [self getTempFilePath:@"jpg"];
           NSError *err;
-         
-          if (![data writeToFile:filePath options:NSAtomicWrite error:&err]) {           
+
+          if (![data writeToFile:filePath options:NSAtomicWrite error:&err]) {
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_IO_EXCEPTION messageAsString:[err localizedDescription]];
           }
-          else {           
+          else {
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:[[NSURL fileURLWithPath:filePath] absoluteString]];
           }
         } else {
@@ -782,7 +757,7 @@
     do {
         filePath = [NSString stringWithFormat:@"%@/%@%04d.%@", tmpPath, TMP_IMAGE_PREFIX, i++, extension];
     } while ([fileMgr fileExistsAtPath:filePath]);
-    
+
     return filePath;
 }
 
