@@ -691,24 +691,29 @@
 
         NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
         UIImage *capturedImage = [[UIImage alloc] initWithData:imageData];
+        CIImage *capturedCImage = nil;
 
-        CGRect scaledImageRect = CGRectZero;
+        if(width > 0 && height > 0) {
+          CGRect scaledImageRect = CGRectZero;
 
-        CGSize newSize = CGSizeMake(width, height);
-        CGFloat aspectWidth = newSize.width / capturedImage.size.width;
-        CGFloat aspectHeight = newSize.height / capturedImage.size.height;
-        CGFloat aspectRatio = MIN ( aspectWidth, aspectHeight );
+          CGSize newSize = CGSizeMake(width, height);
+          CGFloat aspectWidth = newSize.width / capturedImage.size.width;
+          CGFloat aspectHeight = newSize.height / capturedImage.size.height;
+          CGFloat aspectRatio = MIN ( aspectWidth, aspectHeight );
 
-        scaledImageRect.size.width = capturedImage.size.width * aspectRatio;
-        scaledImageRect.size.height = capturedImage.size.height * aspectRatio;
-        scaledImageRect.origin.x = (width - scaledImageRect.size.width) / 2.0f;
-        scaledImageRect.origin.y = 0;
-        UIGraphicsBeginImageContextWithOptions( newSize, NO, 1 );
-        [capturedImage drawInRect:scaledImageRect];
-        UIImage* scaledImage = UIGraphicsGetImageFromCurrentImageContext();
-        UIGraphicsEndImageContext();
+          scaledImageRect.size.width = capturedImage.size.width * aspectRatio;
+          scaledImageRect.size.height = capturedImage.size.height * aspectRatio;
+          scaledImageRect.origin.x = (width - scaledImageRect.size.width) / 2.0f;
+          scaledImageRect.origin.y = 0;
+          UIGraphicsBeginImageContextWithOptions( newSize, NO, 1 );
+          [capturedImage drawInRect:scaledImageRect];
+          UIImage* scaledImage = UIGraphicsGetImageFromCurrentImageContext();
+          UIGraphicsEndImageContext();
 
-        CIImage *capturedCImage = [[CIImage alloc] initWithCGImage:[scaledImage CGImage]];
+          capturedCImage = [[CIImage alloc] initWithCGImage:[scaledImage CGImage]];
+        } else {
+          capturedCImage = [[CIImage alloc] initWithCGImage:[capturedImage CGImage]];
+        }
 
         CGImageRef finalImage = [self.cameraRenderController.ciContext createCGImage:capturedCImage fromRect:capturedCImage.extent];
         CGImageRef resultFinalImage = finalImage;
