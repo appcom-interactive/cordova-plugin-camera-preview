@@ -716,6 +716,13 @@
         }
 
         CGImageRef finalImage = [self.cameraRenderController.ciContext createCGImage:capturedCImage fromRect:capturedCImage.extent];
+
+        if (width == 0 && height == 0) {
+          UIImage *resultImage = [UIImage imageWithCGImage:finalImage];
+          double radians = [self radiansFromUIImageOrientation:resultImage.imageOrientation];
+          finalImage = [self CGImageRotated:finalImage withRadians:radians];
+        }
+
         CGImageRef resultFinalImage = finalImage;
 
         CDVPluginResult *pluginResult;
